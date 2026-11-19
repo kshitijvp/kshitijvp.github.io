@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en" class="scroll-smooth">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kshitij Paranjape — Compilers, Program Analysis & Systems</title>
+    <meta name="description" content="Personal academic and systems engineering portfolio of Kshitij Paranjape (IIT Dharwad). Focused on Compilers, LLVM/MLIR, Polyhedral Loop Analysis, and Program Analysis.">
+
+    <!-- Fonts: Inter (Sans) & JetBrains Mono (Code/Dates) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'system-ui', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'ui-monospace', 'monospace'],
+                    },
+                    colors: {
+                        brand: {
+                            50: '#f4f4f5',
+                            100: '#e4e4e7',
+                            800: '#27272a',
+                            900: '#18181b',
+                            950: '#0f1115'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Theme Initialization Script (Prevents flash of unstyled theme) -->
+    <script>
+        if (localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches)) {
+            document.documentElement.classList.add('dark');
+        } else {
+            document.documentElement.classList.remove('dark');
+        }
+    </script>
+
+    <style>
+        /* Custom minimal scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(161, 161, 170, 0.3);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(161, 161, 170, 0.5);
+        }
+        
+        /* Subtle selection styling */
+        ::selection {
+            background-color: rgba(161, 161, 170, 0.25);
+        }
+
+        /* Subtle code block styling */
+        pre code {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.825rem;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body class="bg-[#fafafa] dark:bg-[#0f1115] text-zinc-800 dark:text-zinc-200 font-sans antialiased selection:bg-zinc-200 dark:selection:bg-zinc-800 transition-colors duration-200 min-h-screen flex flex-col">
+
+    <!-- Toast Notification for Copy Action -->
+    <div id="toast" class="fixed bottom-6 right-6 z-50 transform translate-y-16 opacity-0 transition-all duration-300 pointer-events-none bg-zinc-900 dark:bg-zinc-100 text-zinc-100 dark:text-zinc-900 text-xs font-mono py-2.5 px-4 rounded-md shadow-lg flex items-center gap-2">
+        <svg class="w-4 h-4 text-emerald-400 dark:text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+        <span id="toast-message">Copied to clipboard!</span>
+    </div>
+
+    <!-- Navigation Header -->
+    <header class="sticky top-0 z-40 backdrop-blur-md bg-[#fafafa]/85 dark:bg-[#0f1115]/85 border-b border-zinc-200/80 dark:border-zinc-800/80 transition-colors duration-200">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between font-mono text-xs">
+            <!-- Brand / Prompt Identifier -->
+            <a href="#hero" class="font-semibold tracking-tight text-zinc-900 dark:text-zinc-100 hover:text-zinc-600 dark:hover:text-zinc-400 transition-colors flex items-center gap-1.5">
+                <span class="text-zinc-400 dark:text-zinc-600">$</span>
+                <span>kshitijvp</span>
+            </a>
+
+            <!-- Navigation Anchors -->
+            <nav class="hidden md:flex items-center space-x-5 text-zinc-600 dark:text-zinc-400">
+                <a href="#about" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">About</a>
+                <a href="#experience" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Research</a>
+                <a href="#llvm" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">LLVM</a>
+                <a href="#projects" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Projects</a>
+                <a href="#blogs" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Blogs</a>
+                <a href="#education" class="nav-link hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Skills</a>
+            </nav>
+
+            <div class="flex items-center gap-3">
+                <!-- Resume Direct Download/View Link -->
+                <a href="#" onclick="copyEmail('ec24bt021@iitdh.ac.in'); return false;" class="text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors flex items-center gap-1 border border-zinc-300 dark:border-zinc-700 px-2 py-1 rounded">
+                    <span>Contact</span>
+                </a>
+
+                <!-- Theme Toggle Button -->
+                <button id="theme-toggle" type="button" aria-label="Toggle Theme" class="p-1.5 rounded-md text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200/60 dark:hover:bg-zinc-800/60 transition-colors">
+                    <!-- Sun Icon (for dark mode) -->
+                    <svg id="theme-toggle-light-icon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    <!-- Moon Icon (for light mode) -->
+                    <svg id="theme-toggle-dark-icon" class="w-4 h-4 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 flex-grow w-full space-y-14">
+
+        <!-- HERO / ABOUT SECTION -->
+        <section id="hero" class="scroll-mt-20">
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div>
+                        <h1 class="text-2xl sm:text-3xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">
+                            Kshitij Paranjape
+                        </h1>
+                        <p class="text-xs sm:text-sm font-mono text-zinc-600 dark:text-zinc-400 mt-1">
+                            B.Tech Electronics & Communication @ <span class="text-zinc-900 dark:text-zinc-200 font-semibold">IIT Dharwad</span> (2024–2028)
+                        </p>
+                    </div>
+                    <div class="flex items-center space-x-2 text-xs font-mono">
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20">
+                            <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 mr-1.5 animate-pulse"></span>
+                            Open to Research & Eng
+                        </span>
+                    </div>
+                </div>
+
+                <p class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 font-sans pt-2">
+                    Systems engineer and compiler researcher with a deep focus on <strong class="text-zinc-900 dark:text-zinc-100 font-semibold">LLVM/MLIR infrastructure</strong>, <strong class="text-zinc-900 dark:text-zinc-100 font-semibold">program analysis</strong> (GVN, Static Analysis, CoS-SSA), and <strong class="text-zinc-900 dark:text-zinc-100 font-semibold">polyhedral loop scheduling & auto-parallelization</strong> for CPU/GPU targets. Active contributor to the upstream LLVM Project.
+                </p>
+
+                <!-- Social Links & Email Actions -->
+                <div class="flex flex-wrap items-center gap-3 pt-2 font-mono text-xs">
+                    <!-- GitHub -->
+                    <a href="https://github.com/kshitijvp" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/50 dark:bg-zinc-800/40 px-2.5 py-1.5 rounded transition-all hover:border-zinc-400 dark:hover:border-zinc-600">
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                        <span>github/kshitijvp</span>
+                    </a>
+
+                    <!-- LinkedIn -->
+                    <a href="https://linkedin.com/in/kshitij-paranjape" target="_blank" rel="noopener noreferrer" class="inline-flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/50 dark:bg-zinc-800/40 px-2.5 py-1.5 rounded transition-all hover:border-zinc-400 dark:hover:border-zinc-600">
+                        <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 3a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h14m-.5 15.5v-5.3a3.26 3.26 0 0 0-3.26-3.26c-.85 0-1.84.52-2.28 1.3v-1.11h-2.79v8.37h2.79v-4.93c0-.77.62-1.4 1.39-1.4a1.4 1.4 0 0 1 1.4 1.4v4.93h2.75M6.46 10.9v8.37H9.25V10.9H6.46M7.86 6.64a1.62 1.62 0 1 0 0 3.24 1.62 1.62 0 0 0 0-3.24z"/></svg>
+                        <span>LinkedIn</span>
+                    </a>
+
+                    <!-- Email Button -->
+                    <button onclick="copyEmail('ec24bt021@iitdh.ac.in')" class="inline-flex items-center gap-1.5 text-zinc-700 dark:text-zinc-300 hover:text-zinc-900 dark:hover:text-zinc-100 border border-zinc-300 dark:border-zinc-700/80 bg-zinc-100/50 dark:bg-zinc-800/40 px-2.5 py-1.5 rounded transition-all hover:border-zinc-400 dark:hover:border-zinc-600">
+                        <svg class="w-4 h-4 fill-none stroke-current" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                        <span>ec24bt021@iitdh.ac.in</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+
+        <!-- RESEARCH & EXPERIENCE -->
+        <section id="experience" class="scroll-mt-20 space-y-6">
+            <div class="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
+                <h2 class="text-sm font-mono tracking-wider uppercase text-zinc-500 dark:text-zinc-400 font-semibold">
+                    01. Research & Experience
+                </h2>
+            </div>
+
+            <div class="space-y-8">
+                <!-- Entry 1: IIT Dharwad -->
+                <div class="group relative pl-4 border-l-2 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+                    <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 mb-1">
+                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                            R&D Research Assistant — <span class="text-zinc-600 dark:text-zinc-400 font-normal">IIT Dharwad</span>
+                        </h3>
+                        <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">Aug 2026 – Present | Dharwad</span>
+                    </div>
+
+                    <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-2">
+                        Advisor: Prof. Nikhil Hegde
+                    </p>
+
+                    <ul class="text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 space-y-2 list-disc list-outside ml-4 leading-relaxed">
+                        <li>Developing an <strong class="text-zinc-900 dark:text-zinc-100 font-medium">Auto-Parallelizing Python Compiler</strong> for Radio Access Networks (RAN) that compiles to MLIR for Loop Analysis and Scheduling across multi-core CPUs and GPUs.</li>
+                        <li>Explored loops and scheduling using <code class="font-mono text-xs bg-zinc-200/60 dark:bg-zinc-800/80 px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200">LLVM/Polly</code> and MLIR polyhedral models. Created a C++ LLVM/MLIR pass translating complex memory dependencies into readable analysis formats.</li>
+                    </ul>
+
+                    <div class="mt-3 flex items-center gap-3 font-mono text-xs">
+                        <!-- Repository Placeholder Link -->
+                        <a href="https://github.com/kshitijvp" target="_blank" class="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-zinc-300 dark:decoration-zinc-700 underline-offset-4">
+                            <span>[Repository]</span>
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Entry 2: PLATO Lab, IIT Bombay -->
+                <div class="group relative pl-4 border-l-2 border-zinc-200 dark:border-zinc-800 hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+                    <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 mb-1">
+                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                            Research Intern — <span class="text-zinc-600 dark:text-zinc-400 font-normal">PLATO Lab, IIT Bombay</span>
+                        </h3>
+                        <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">May 2026 – Present | Mumbai</span>
+                    </div>
+
+                    <p class="text-xs font-mono text-zinc-500 dark:text-zinc-400 mb-2">
+                        Advisor: Prof. Uday Khedker
+                    </p>
+
+                    <ul class="text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 space-y-2 list-disc list-outside ml-4 leading-relaxed">
+                        <li>Implementing <strong class="text-zinc-900 dark:text-zinc-100 font-medium">Interprocedural Global Value Numbering (GVN)</strong> using Context-Sensitive Static Single Assignment (<code class="font-mono text-xs bg-zinc-200/60 dark:bg-zinc-800/80 px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200">CoS-SSA</code>) Intermediate Representation and Data Dependency Graphs.</li>
+                        <li>Implemented both Optimistic and Pessimistic algorithms for Global Value Numbering, extending optimizations across Simplified LLVM Intermediate Representation (<code class="font-mono text-xs bg-zinc-200/60 dark:bg-zinc-800/80 px-1 py-0.5 rounded text-zinc-800 dark:text-zinc-200">SLIM IR</code>).</li>
+                    </ul>
+
+                    <div class="mt-3 flex items-center gap-3 font-mono text-xs">
+                        <a href="https://github.com/kshitijvp" target="_blank" class="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-zinc-300 dark:decoration-zinc-700 underline-offset-4">
+                            <span>[Repository]</span>
+                        </a>
+                        <a href="#" onclick="copyEmail('kshitijvparanjape@gmail.com'); return false;" class="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 underline decoration-zinc-300 dark:decoration-zinc-700 underline-offset-4">
+                            <span>[Slides]</span>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- OPEN SOURCE / LLVM CONTRIBUTIONS -->
+        <section id="llvm" class="scroll-mt-20 space-y-6">
+            <div class="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
+                <h2 class="text-sm font-mono tracking-wider uppercase text-zinc-500 dark:text-zinc-400 font-semibold">
+                    02. Open Source Contributions
+                </h2>
+                <a href="https://github.com/llvm/llvm-project/pulls?q=is%3Apr+author%3Akshitijvp" target="_blank" class="font-mono text-xs text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 flex items-center gap-1">
+                    <span>llvm-project</span>
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                </a>
+            </div>
+
+            <div class="bg-zinc-100/60 dark:bg-zinc-900/40 border border-zinc-200/80 dark:border-zinc-800/80 rounded-lg p-4 sm:p-5">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                    <div class="flex items-center gap-2">
+                        <span class="font-mono font-semibold text-sm text-zinc-900 dark:text-zinc-100">LLVM Compiler Infrastructure</span>
+                        <span class="px-2 py-0.5 text-[10px] font-mono rounded bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20">
+                            Member & Contributor
+                        </span>
+                    </div>
+                    <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">9 Merged Pull Requests</span>
+                </div>
+
+                <p class="text-xs sm:text-sm text-zinc-700 dark:text-zinc-300 mb-4 leading-relaxed">
+                    Actively contributing upstream optimizations, instruction combining rules, and bug fixes to the LLVM project, targeting Loop-Vectorization, Value Tracking, Instruction Combining, and Floating-Point Mathematics.
+                </p>
+
+                <!-- Highlighted Merged PRs -->
+                <div class="space-y-3 font-mono text-xs">
+                    <!-- PR 1 -->
+                    <div class="p-3 bg-white dark:bg-[#0f1115] border border-zinc-200 dark:border-zinc-800/80 rounded transition-all">
+                        <div class="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1 text-[11px]">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-semibold">MERGED</span>
+                            <span>Loop Vectorization / Recurrence ABI</span>
+                        </div>
+                        <p class="text-zinc-800 dark:text-zinc-200 font-sans text-xs sm:text-sm leading-relaxed">
+                            Added new ABI handling to simple recurrence patterns consisting of ternary intrinsics. This enables sign information propagation out of loops, converting <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">sqrt</code> libcalls directly to intrinsic calls.
+                        </p>
+                    </div>
+
+                    <!-- PR 2 -->
+                    <div class="p-3 bg-white dark:bg-[#0f1115] border border-zinc-200 dark:border-zinc-800/80 rounded transition-all">
+                        <div class="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1 text-[11px]">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-semibold">MERGED</span>
+                            <span>AArch64 Neon / Type Verification</span>
+                        </div>
+                        <p class="text-zinc-800 dark:text-zinc-200 font-sans text-xs sm:text-sm leading-relaxed">
+                            Added validation checks to prevent assertion failures when invalid return types are supplied while invoking <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">llvm.aarch64.neon.smull</code>, ensuring invalid types are rejected gracefully.
+                        </p>
+                    </div>
+
+                    <!-- PR 3 -->
+                    <div class="p-3 bg-white dark:bg-[#0f1115] border border-zinc-200 dark:border-zinc-800/80 rounded transition-all">
+                        <div class="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1 text-[11px]">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-semibold">MERGED</span>
+                            <span>x86 SSE2 / Instruction Handling</span>
+                        </div>
+                        <p class="text-zinc-800 dark:text-zinc-200 font-sans text-xs sm:text-sm leading-relaxed">
+                            Fixed an issue where calling <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">llvm.x86.sse2.pshuflw</code> with type <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">&lt;4 x i32&gt;</code> (instead of expected <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">&lt;8 x i16&gt;</code>) caused crash loops during instruction deletion. Implemented strict type validation via <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">reportFatalUsageError()</code>.
+                        </p>
+                    </div>
+
+                    <!-- PR 4 -->
+                    <div class="p-3 bg-white dark:bg-[#0f1115] border border-zinc-200 dark:border-zinc-800/80 rounded transition-all">
+                        <div class="flex items-center justify-between text-zinc-500 dark:text-zinc-400 mb-1 text-[11px]">
+                            <span class="text-emerald-600 dark:text-emerald-400 font-semibold">MERGED</span>
+                            <span>Vectorization / Value Tracking</span>
+                        </div>
+                        <p class="text-zinc-800 dark:text-zinc-200 font-sans text-xs sm:text-sm leading-relaxed">
+                            Fixed a conservative <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">NoSync</code> check that prevented auto-vectorization of <code class="font-mono text-xs bg-zinc-100 dark:bg-zinc-800 px-1 py-0.5 rounded text-zinc-900 dark:text-zinc-100">std::find_if</code> by implementing detailed checks for volatile and atomic operations.
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- PROJECTS -->
+        <section id="projects" class="scroll-mt-20 space-y-6">
+            <div class="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
+                <h2 class="text-sm font-mono tracking-wider uppercase text-zinc-500 dark:text-zinc-400 font-semibold">
+                    03. Key Projects
+                </h2>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Project 1 -->
+                <div class="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 bg-white dark:bg-[#0f1115] flex flex-col justify-between hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-100 font-mono">
+                                toy-compiler
+                            </h3>
+                            <a href="https://github.com/kshitijvp/toy-compiler" target="_blank" class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                            </a>
+                        </div>
+                        <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">
+                            Developed a functional compiler pipeline following the LLVM Kaleidoscope architecture. Implemented Lexing, AST Parsing, IR Code Generation, and Just-In-Time (JIT) execution engine.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">C++</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">LLVM IR</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">JIT</span>
+                    </div>
+                </div>
+
+                <!-- Project 2 -->
+                <div class="border border-zinc-200 dark:border-zinc-800 rounded-lg p-4 bg-white dark:bg-[#0f1115] flex flex-col justify-between hover:border-zinc-400 dark:hover:border-zinc-600 transition-colors">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-100 font-mono">
+                                Chat Application
+                            </h3>
+                            <a href="https://github.com/kshitijvp" target="_blank" class="text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/></svg>
+                            </a>
+                        </div>
+                        <p class="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mb-4">
+                            High-concurrency real-time network chat server using <code class="font-mono text-xs">Boost.Asio</code>. Built asynchronous socket I/O loops and thread pooling to process multi-client requests safely.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2 font-mono text-[11px] text-zinc-500 dark:text-zinc-400">
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">C++</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">Boost.Asio</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded">Sockets</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- BLOGS & TECHNICAL NOTES -->
+        <section id="blogs" class="scroll-mt-20 space-y-6">
+            <div class="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <h2 class="text-sm font-mono tracking-wider uppercase text-zinc-500 dark:text-zinc-400 font-semibold">
+                    04. Blogs & Notes
+                </h2>
+
+                <!-- Category Filters -->
+                <div id="blog-filters" class="flex items-center gap-1.5 font-mono text-xs">
+                    <button data-filter="all" class="filter-btn active-filter px-2 py-0.5 rounded bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 font-medium transition-all">All</button>
+                    <button data-filter="Compilers" class="filter-btn px-2 py-0.5 rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all">Compilers</button>
+                    <button data-filter="LLVM" class="filter-btn px-2 py-0.5 rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all">LLVM</button>
+                    <button data-filter="Research" class="filter-btn px-2 py-0.5 rounded text-zinc-600 dark:text-zinc-400 hover:bg-zinc-200 dark:hover:bg-zinc-800 transition-all">Research</button>
+                </div>
+            </div>
+
+            <!-- Blog Reader View (Hidden by default, shown on click) -->
+            <div id="blog-reader" class="hidden border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-[#0f1115] rounded-lg p-5 sm:p-6 transition-all space-y-4">
+                <div class="flex items-center justify-between border-b border-zinc-200 dark:border-zinc-800 pb-3 font-mono text-xs">
+                    <button id="close-blog-reader" class="inline-flex items-center gap-1 text-zinc-600 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+                        <span>Back to articles</span>
+                    </button>
+                    <span id="blog-reader-date" class="text-zinc-500 dark:text-zinc-400"></span>
+                </div>
+
+                <div class="space-y-3">
+                    <h3 id="blog-reader-title" class="text-xl font-bold text-zinc-900 dark:text-zinc-100"></h3>
+                    <div id="blog-reader-tags" class="flex gap-2 font-mono text-[11px]"></div>
+                </div>
+
+                <div id="blog-reader-content" class="text-sm leading-relaxed text-zinc-700 dark:text-zinc-300 pt-2 space-y-4">
+                    <!-- Populated dynamically via JS -->
+                </div>
+            </div>
+
+            <!-- Blog Post List -->
+            <div id="blog-list" class="space-y-3">
+                <!-- Blog Item 1 -->
+                <article data-category="Compilers Research" class="blog-item group p-4 border border-zinc-200 dark:border-zinc-800/80 rounded-lg bg-white dark:bg-[#0f1115] hover:border-zinc-400 dark:hover:border-zinc-600 transition-all cursor-pointer" onclick="openBlog(0)">
+                    <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 mb-1">
+                        <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            Notes on Global Value Numbering in SLIM IR
+                        </h3>
+                        <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">Oct 2026 · 6 min read</span>
+                    </div>
+                    <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3">
+                        A walkthrough comparing Optimistic vs. Pessimistic GVN algorithms implemented over Simplified LLVM IR with Context-Sensitive SSA representation.
+                    </p>
+                    <div class="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">Compilers</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">Research</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">SSA</span>
+                    </div>
+                </article>
+
+                <!-- Blog Item 2 -->
+                <article data-category="Compilers LLVM Research" class="blog-item group p-4 border border-zinc-200 dark:border-zinc-800/80 rounded-lg bg-white dark:bg-[#0f1115] hover:border-zinc-400 dark:hover:border-zinc-600 transition-all cursor-pointer" onclick="openBlog(1)">
+                    <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 mb-1">
+                        <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            Polyhedral Loop Scheduling with MLIR & Polly
+                        </h3>
+                        <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">Aug 2026 · 8 min read</span>
+                    </div>
+                    <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3">
+                        Exploring memory dependency analysis in Radio Access Network (RAN) loops using MLIR polyhedral dialects and LLVM/Polly pass transformations.
+                    </p>
+                    <div class="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">MLIR</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">LLVM</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">Polyhedral</span>
+                    </div>
+                </article>
+
+                <!-- Blog Item 3 -->
+                <article data-category="Compilers LLVM" class="blog-item group p-4 border border-zinc-200 dark:border-zinc-800/80 rounded-lg bg-white dark:bg-[#0f1115] hover:border-zinc-400 dark:hover:border-zinc-600 transition-all cursor-pointer" onclick="openBlog(2)">
+                    <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 mb-1">
+                        <h3 class="font-semibold text-base text-zinc-900 dark:text-zinc-100 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 transition-colors">
+                            Takeaways from ACM India Winter School 2025
+                        </h3>
+                        <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">Dec 2025 · 5 min read</span>
+                    </div>
+                    <p class="text-xs text-zinc-600 dark:text-zinc-400 line-clamp-2 leading-relaxed mb-3">
+                        Key takeaways from 2 weeks of intensive sessions on SSA forms, Partial Redundancy Elimination (PRE), Register Allocation, Triton, and CUDA.
+                    </p>
+                    <div class="flex items-center gap-2 font-mono text-[11px] text-zinc-500">
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">ACM School</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">CUDA / Triton</span>
+                        <span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">Program Analysis</span>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <!-- EDUCATION, CERTIFICATIONS & SKILLS -->
+        <section id="education" class="scroll-mt-20 space-y-6">
+            <div class="border-b border-zinc-200 dark:border-zinc-800 pb-2 flex items-center justify-between">
+                <h2 class="text-sm font-mono tracking-wider uppercase text-zinc-500 dark:text-zinc-400 font-semibold">
+                    05. Education & Technical Skills
+                </h2>
+            </div>
+
+            <!-- Education Block -->
+            <div class="space-y-4">
+                <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1">
+                    <div>
+                        <h3 class="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                            Indian Institute of Technology Dharwad
+                        </h3>
+                        <p class="text-xs font-mono text-zinc-600 dark:text-zinc-400">
+                            B.Tech in Electronics and Communication Engineering
+                        </p>
+                    </div>
+                    <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400">2024 – 2028 | Dharwad, KA</span>
+                </div>
+
+                <!-- Collapsible Coursework -->
+                <div class="border border-zinc-200 dark:border-zinc-800 rounded-lg p-3 sm:p-4 bg-zinc-100/40 dark:bg-zinc-900/30">
+                    <button id="toggle-coursework" class="w-full flex items-center justify-between text-xs font-mono text-zinc-700 dark:text-zinc-300 font-semibold focus:outline-none">
+                        <span>Relevant Coursework & Foundations</span>
+                        <svg id="coursework-arrow" class="w-4 h-4 transform transition-transform duration-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </button>
+                    <div id="coursework-content" class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-mono text-zinc-600 dark:text-zinc-400 pt-2 border-t border-zinc-200 dark:border-zinc-800">
+                        <div>• Data Structures & Algorithms</div>
+                        <div>• Digital Systems & Microprocessors</div>
+                        <div>• Pattern Recognition & ML</div>
+                        <div>• Digital Signal Processing</div>
+                        <div>• Probability & Data Analysis</div>
+                        <div>• Electronic Devices & Analog Circuits</div>
+                        <div>• Signals and Systems</div>
+                        <div>• Modern Communication</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Certifications -->
+            <div class="pt-2 space-y-2">
+                <h4 class="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">Certifications & Training</h4>
+                <div class="p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-white dark:bg-[#0f1115] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div>
+                        <div class="font-semibold text-sm text-zinc-900 dark:text-zinc-100">ACM India Winter School 2025</div>
+                        <p class="text-xs text-zinc-600 dark:text-zinc-400">2-week intensive training on SSA, GVN, PRE, Program Analysis, Register Allocation, Loop Optimizations, CUDA, Triton, LLVM, MLIR.</p>
+                    </div>
+                    <span class="font-mono text-xs text-zinc-500 dark:text-zinc-400 whitespace-nowrap">Chennai · Dec 2025</span>
+                </div>
+            </div>
+
+            <!-- Skills Matrix Table -->
+            <div class="pt-2 space-y-3">
+                <h4 class="text-xs font-mono uppercase tracking-wider text-zinc-500 dark:text-zinc-400 font-semibold">Technical Skills</h4>
+                <div class="border border-zinc-200 dark:border-zinc-800 rounded-lg overflow-hidden font-mono text-xs">
+                    <div class="grid grid-cols-1 sm:grid-cols-4 border-b border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50 dark:bg-zinc-900/50">
+                        <span class="font-semibold text-zinc-900 dark:text-zinc-100">Languages</span>
+                        <span class="sm:col-span-3 text-zinc-700 dark:text-zinc-300">C, C++, x86/64 ASM, LLVM IR, Python, Makefiles, Verilog</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 border-b border-zinc-200 dark:border-zinc-800 p-3 bg-zinc-50/50 dark:bg-zinc-900/20">
+                        <span class="font-semibold text-zinc-900 dark:text-zinc-100">Tools & Infra</span>
+                        <span class="sm:col-span-3 text-zinc-700 dark:text-zinc-300">LLVM, MLIR, SelectionDAG, Linux, Git, QEMU, GDB, Vim, OpenMP</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-4 p-3 bg-zinc-50 dark:bg-zinc-900/50">
+                        <span class="font-semibold text-zinc-900 dark:text-zinc-100">Scripting</span>
+                        <span class="sm:col-span-3 text-zinc-700 dark:text-zinc-300">Bash, Python</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-zinc-200 dark:border-zinc-800 mt-16 py-8 bg-zinc-50 dark:bg-[#0b0c0e] font-mono text-xs text-zinc-500 dark:text-zinc-400">
+        <div class="max-w-3xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div>
+                © <span id="year">2026</span> Kshitij Paranjape. Built for <a href="https://github.com/kshitijvp/kshitijvp.github.io" class="hover:underline text-zinc-700 dark:text-zinc-300">kshitijvp.github.io</a>
+            </div>
+
+            <div class="flex items-center space-x-4">
+                <button onclick="copyEmail('ec24bt021@iitdh.ac.in')" class="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                    [copy email]
+                </button>
+                <a href="#hero" class="hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">
+                    ↑ top
+                </a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- Interactive JavaScript -->
+    <script>
+        // Set dynamic current year
+        document.getElementById('year').textContent = new Date().getFullYear();
+
+        // Theme Switcher Logic
+        const themeToggleBtn = document.getElementById('theme-toggle');
+        const darkIcon = document.getElementById('theme-toggle-dark-icon');
+        const lightIcon = document.getElementById('theme-toggle-light-icon');
+
+        function updateThemeIcons() {
+            if (document.documentElement.classList.contains('dark')) {
+                lightIcon.classList.remove('hidden');
+                darkIcon.classList.add('hidden');
+            } else {
+                lightIcon.classList.add('hidden');
+                darkIcon.classList.remove('hidden');
+            }
+        }
+        updateThemeIcons();
+
+        themeToggleBtn.addEventListener('click', () => {
+            if (document.documentElement.classList.contains('dark')) {
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('theme', 'light');
+            } else {
+                document.documentElement.classList.add('dark');
+                localStorage.setItem('theme', 'dark');
+            }
+            updateThemeIcons();
+        });
+
+        // Email Copy to Clipboard with Toast Notification
+        function copyEmail(email) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(email);
+            } else {
+                // Fallback for restricted frames
+                const textArea = document.createElement("textarea");
+                textArea.value = email;
+                document.body.appendChild(textArea);
+                textArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textArea);
+            }
+
+            const toast = document.getElementById('toast');
+            const toastMsg = document.getElementById('toast-message');
+            toastMsg.textContent = `Copied "${email}" to clipboard!`;
+            
+            toast.classList.remove('translate-y-16', 'opacity-0');
+            toast.classList.add('translate-y-0', 'opacity-100');
+
+            setTimeout(() => {
+                toast.classList.remove('translate-y-0', 'opacity-100');
+                toast.classList.add('translate-y-16', 'opacity-0');
+            }, 3000);
+        }
+
+        // Toggle Coursework Section
+        const toggleBtn = document.getElementById('toggle-coursework');
+        const content = document.getElementById('coursework-content');
+        const arrow = document.getElementById('coursework-arrow');
+
+        toggleBtn.addEventListener('click', () => {
+            content.classList.toggle('hidden');
+            arrow.classList.toggle('rotate-180');
+        });
+
+        // Interactive Blog Data
+        const blogPosts = [
+            {
+                title: "Notes on Global Value Numbering in SLIM IR",
+                date: "October 14, 2026",
+                readTime: "6 min read",
+                tags: ["Compilers", "Research", "SSA", "LLVM"],
+                content: `
+                    <p>Global Value Numbering (GVN) is a compiler optimization pass that identifies equivalent expressions in a program and replaces redundant computations with existing values.</p>
+                    <p class="mt-3">During my research at <strong>PLATO Lab, IIT Bombay</strong> under Prof. Uday Khedker, we extended GVN over <em>SLIM IR</em> (Simplified LLVM IR) operating with Context-Sensitive SSA (CoS-SSA) representation.</p>
+                    <h4 class="font-semibold text-zinc-900 dark:text-zinc-100 font-mono text-sm mt-4 mb-2">Optimistic vs. Pessimistic GVN</h4>
+                    <ul class="list-disc ml-5 space-y-1 text-xs sm:text-sm">
+                        <li><strong>Pessimistic GVN:</strong> Assumes all values are non-equivalent initially, iteratively proving equivalence as data dependencies resolve. Safe, but misses cyclic equivalences.</li>
+                        <li><strong>Optimistic GVN:</strong> Assumes all values are congruent until proven otherwise. Optimistically propagates congruences across loop back-edges.</li>
+                    </ul>
+                    <div class="mt-4 p-3 bg-zinc-900 text-zinc-100 rounded font-mono text-xs overflow-x-auto">
+                        <pre><code>; Example SLIM IR snippet with redundant load evaluation
+%v1 = load i32, i32* %ptr
+%v2 = add i32 %v1, 0        ; Redundant arithmetic
+%v3 = load i32, i32* %ptr   ; Redundant memory load if no store intervenes
+; GVN replaces %v3 with %v1 and eliminates %v2</code></pre>
+                    </div>
+                `
+            },
+            {
+                title: "Polyhedral Loop Scheduling with MLIR & Polly",
+                date: "August 28, 2026",
+                readTime: "8 min read",
+                tags: ["MLIR", "LLVM", "Polyhedral", "Parallelism"],
+                content: `
+                    <p>Radio Access Networks (RAN) require ultra-low latency execution of compute-dense signal processing loops. Manual parallelization and scheduling across heterogenous CPU multi-cores and GPU acceleration blocks is error-prone.</p>
+                    <p class="mt-3">At <strong>IIT Dharwad</strong> with Prof. Nikhil Hegde, we built an auto-parallelizing compiler pipeline. Python loop structures are parsed into high-level dialects in MLIR, where memory access bounds are modeled as integer polyhedra.</p>
+                    <h4 class="font-semibold text-zinc-900 dark:text-zinc-100 font-mono text-sm mt-4 mb-2">Polyhedral Transformation Workflow</h4>
+                    <ol class="list-decimal ml-5 space-y-1 text-xs sm:text-sm">
+                        <li>Extract SCoP (Static Control Parts) from high-level dialects.</li>
+                        <li>Formulate domain, schedule, and access relations using Integer Set Library (ISL).</li>
+                        <li>Perform loop skewing, tiling, and vectorization pass transformations.</li>
+                        <li>Lower optimized polyhedral schedules to OpenMP/CUDA code targets.</li>
+                    </ol>
+                `
+            },
+            {
+                title: "Takeaways from ACM India Winter School 2025",
+                date: "December 22, 2025",
+                readTime: "5 min read",
+                tags: ["ACM School", "CUDA", "Triton", "Program Analysis"],
+                content: `
+                    <p>Attending the 2-week ACM India Winter School in Chennai was an enriching dive into modern compiler design and program analysis techniques.</p>
+                    <p class="mt-3">Key topics spanned classical static analysis algorithms to modern GPU programming primitives:</p>
+                    <ul class="list-disc ml-5 space-y-1 text-xs sm:text-sm">
+                        <li><strong>Partial Redundancy Elimination (PRE):</strong> Combining LCM (Lazy Code Motion) to move computations out of loops only when strictly beneficial.</li>
+                        <li><strong>Register Allocation:</strong> Graph coloring heuristics (Chaitin-Briggs algorithm) and linear scan for fast JIT compilation.</li>
+                        <li><strong>Triton & CUDA:</strong> Block-level programming models for high-performance deep learning kernels.</li>
+                    </ul>
+                `
+            }
+        ];
+
+        // Blog Interactivity
+        const blogReader = document.getElementById('blog-reader');
+        const blogList = document.getElementById('blog-list');
+        const blogReaderTitle = document.getElementById('blog-reader-title');
+        const blogReaderDate = document.getElementById('blog-reader-date');
+        const blogReaderTags = document.getElementById('blog-reader-tags');
+        const blogReaderContent = document.getElementById('blog-reader-content');
+        const closeBlogBtn = document.getElementById('close-blog-reader');
+
+        function openBlog(index) {
+            const post = blogPosts[index];
+            if (!post) return;
+
+            blogReaderTitle.textContent = post.title;
+            blogReaderDate.textContent = `${post.date} · ${post.readTime}`;
+            blogReaderContent.innerHTML = post.content;
+            
+            blogReaderTags.innerHTML = post.tags.map(tag => 
+                `<span class="px-2 py-0.5 bg-zinc-100 dark:bg-zinc-800 rounded text-zinc-700 dark:text-zinc-300">${tag}</span>`
+            ).join('');
+
+            blogList.classList.add('hidden');
+            blogReader.classList.remove('hidden');
+            blogReader.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        closeBlogBtn.addEventListener('click', () => {
+            blogReader.classList.add('hidden');
+            blogList.classList.remove('hidden');
+        });
+
+        // Blog Category Filter
+        const filterBtns = document.querySelectorAll('.filter-btn');
+        const blogItems = document.querySelectorAll('.blog-item');
+
+        filterBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                filterBtns.forEach(b => {
+                    b.classList.remove('bg-zinc-900', 'text-zinc-100', 'dark:bg-zinc-100', 'dark:text-zinc-900', 'font-medium');
+                    b.classList.add('text-zinc-600', 'dark:text-zinc-400');
+                });
+                
+                btn.classList.add('bg-zinc-900', 'text-zinc-100', 'dark:bg-zinc-100', 'dark:text-zinc-900', 'font-medium');
+                btn.classList.remove('text-zinc-600', 'dark:text-zinc-400');
+
+                const filter = btn.getAttribute('data-filter');
+
+                blogItems.forEach(item => {
+                    const categories = item.getAttribute('data-category');
+                    if (filter === 'all' || categories.includes(filter)) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+
+                // Close reader if filtering
+                blogReader.classList.add('hidden');
+                blogList.classList.remove('hidden');
+            });
+        });
+    </script>
+</body>
+</html>
